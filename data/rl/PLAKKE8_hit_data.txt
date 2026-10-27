@@ -1,0 +1,9 @@
+rat_ID,date,level,time_in_level,poke_x,poke_y,hit,reward,object_id,object_x,object_y,spawn_time
+1,10/5/2026 3:21:35 PM,ThreeShapes,21.31301,1.5875,2.7625,not_hit,,Cylinder_0,-3.102692,0.0926021,46.88115
+1,10/5/2026 3:21:35 PM,ThreeShapes,21.31301,1.5875,2.7625,hit,punished,Spiral_0,1.535251,2.576492,45.04518
+1,10/5/2026 3:21:35 PM,ThreeShapes,56.21255,-2.9125,0.7625002,hit,punished,Cylinder_0,-3.102692,0.0926021,46.88115
+1,10/5/2026 3:21:35 PM,ThreeShapes,56.21255,-2.9125,0.7625002,not_hit,,Spiral_0,7.011204,2.979975,79.8465
+1,10/5/2026 3:21:35 PM,ThreeShapes,56.21255,-2.9125,0.7625002,not_hit,,Star_0,-5.955932,2.098791,59.08369
+1,10/5/2026 3:21:35 PM,ThreeShapes,213.7695,0.08749962,2.4375,hit,punished,Cylinder_0,0.2393608,2.422305,96.8942
+1,10/5/2026 3:21:35 PM,ThreeShapes,213.7695,0.08749962,2.4375,not_hit,,Spiral_0,7.011204,2.979975,79.8465
+1,10/5/2026 3:21:35 PM,ThreeShapes,213.7695,0.08749962,2.4375,not_hit,,Star_0,-5.955932,2.098791,59.08369
