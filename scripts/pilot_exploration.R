@@ -71,10 +71,10 @@ opd <- opd |>
 # plots -------------------------------------------------------------------
 
 # distribution of pokes by trial for each rat
-opd |> 
-  count(rat_ID, trial_ID) |> 
-  ggplot(aes(x = trial_ID, y = n)) + 
-  geom_col(width = .9) + 
+opd |>
+  ggplot(aes(x = trial_ID, fill = level)) + 
+  geom_density() + 
+  ylab('hits (density)') +
   facet_wrap(~rat_ID)
 
 # test rats aren't really doing much and didn't really get tested
@@ -122,23 +122,43 @@ opd |>
 # kind of remarkably similar hit distance distributions for rats on each level! 
 # shaping 1 averages around 4, shaping 2 around 2, and shaping 4/testing around .75
 
+library(showtext)
+
+font_add_google('Noto Sans')
+
+showtext_opts(dpi = 300)
+showtext_auto()
+
 # heatmap plot
 opd |> 
-  ggplot(aes(color = level)) + 
+  filter(rat_ID == 'H02') |> 
+  ggplot(aes(color = hit_distance)) + 
   geom_point(aes(x = poke_x, y = poke_y)) + 
   geom_point(aes(x = reward_x, y = reward_y), alpha = .3, shape = 17) + 
   geom_segment(
     aes(x = poke_x, xend = reward_x, y = poke_y, yend = reward_y), 
     alpha = .4
   ) + 
-  scale_color_viridis_d(option = 'rocket', direction = -1, begin = .2) + 
+  scale_color_viridis_c(
+    'Hit distance', option = 'rocket', direction = -1, begin = .2, 
+    breaks = seq(0, 10, 2), labels = seq(0, 10, 2), limits = c(0, 10)
+  ) + 
   theme_void() + 
   coord_fixed() + 
-  facet_wrap(~rat_ID) + 
+  facet_wrap(~level) + 
   theme(
+    text = element_text(family = 'Noto Sans'),
+    title = element_text(face = 'bold'),
+    legend.position = 'top', 
+    legend.direction = 'horizontal',
+    legend.title.position = 'top',
+    panel.border = element_rect(color = 'grey'),
     strip.background = element_rect(fill = 'grey'), 
-    strip.text = element_text(face = 'bold')
+    strip.text = element_text(face = 'bold', margin = margin(10,5,10,5))
   )
+
+# dir.create('fig_output')
+ggsave('fig_output/hit_plot.png', device = 'png', width = 10, height = 4, units = 'in')
 
 # matches the above histograms, rats appear to hone in on shapes with more experience 
 # as evidenced by tighter poke distributions and lower hit distances on later shaping levels
