@@ -6,11 +6,12 @@
 
 library(tidyverse)
 library(slider)
+source('util/rft_theme.r')
 
 # load data ---------------------------------------------------------------
 
 # grab data from rl folder
-files <- list.files('data/inhib', full.names = T)
+files <- list.files('data/rl', full.names = T)
 
 # separate all pokes from hits and glue them together
 for (file in files) {
@@ -78,16 +79,47 @@ poke_data_clean <- poke_data |>
   ) |> 
   filter(rat_ID != 'test')
 
+# clean up hit data
+hit_data_clean <- hit_data |> 
+  mutate(
+    rat_ID = factor(str_extract(rat_ID, '[A-Z]\\d+(?=_)')), 
+    date = mdy_hms(date), 
+    day = day(date), 
+    month = month(date)
+  ) |> 
+  group_by(rat_ID) |> 
+  mutate(
+    session = consecutive_id(month, day) # assign unique ids for sessions
+  ) |> 
+  ungroup() |> 
+  group_by(rat_ID, session) |> 
+  mutate(
+    trial = consecutive_id(time_in_level) # assign unique ids for trials
+  ) |> 
+  ungroup() |> 
+  mutate(
+    rat_ID = if_else(is.na(rat_ID), 'test', rat_ID)
+  ) |> 
+  filter(rat_ID != 'test')
+
+
+# pokes only --------------------------------------------------------------
+
 # get raw counts of pokes 
 poke_data_clean |> 
-  count(rat_ID, month, day) |> 
-  ggplot(aes(x = rat_ID, y = n, fill = factor(day))) +
+  count(rat_ID, session) |> 
+  ggplot(aes(x = rat_ID, y = n, fill = factor(session))) +
   geom_col(position = 'dodge') +
-  scale_fill_viridis_d(option = 'magma')
+  labs(y = 'count', x = 'rat') +
+  scale_y_continuous(expand = c(0, 0)) +
+  scale_fill_viridis_d('Session', option = 'magma') + 
+  rft_theme()
+
+ggsave('fig_output/exploration/rl/count_pokes_by_session.png', device = 'png', units = 'in', width = 6, height = 7)
 
 # rate of pokes within trials
 poke_data_clean |> 
-  group_by(rat_ID, month, day) |> 
+  group_by(rat_ID, session) |> 
   arrange(time_in_level) |> 
   mutate(
     roll_count = slide_index_dbl(
@@ -96,14 +128,15 @@ poke_data_clean |>
     )
   ) |> 
   ungroup() |> 
-  ggplot(aes(x = time_in_level, y = roll_count, color = factor(day))) + 
+  ggplot(aes(x = time_in_level, y = roll_count, color = factor(session))) + 
   geom_path() + 
   labs(y = 'Hits / min', x = 'Time in level (s)') +
-  scale_color_viridis_d('Day', option = 'magma', end = .8)+
-  facet_grid(rows = vars(rat_ID), cols = vars(day))
+  scale_color_viridis_d(guide = 'none', option = 'magma', end = .8)+
+  facet_grid(rows = vars(rat_ID), cols = vars(session), scales = 'free_y') +
+  rft_theme()
 
 ggsave(
-  'fig_output/exploration/inhib_rolling_hits_min.png', device = 'png', 
+  'fig_output/exploration/rl/rl_rolling_hits.png', device = 'png', 
   width = 10, height = 8, units = 'in'
 )
 
@@ -127,33 +160,10 @@ ggsave(
 
 # hits --------------------------------------------------------------------
 
-# clean up hit data
-hit_data_clean <- hit_data |> 
-  mutate(
-    rat_ID = factor(str_extract(rat_ID, '[A-Z]\\d+(?=_)')), 
-    date = mdy_hms(date), 
-    day = day(date), 
-    month = month(date)
-  ) |> 
-  group_by(rat_ID) |> 
-  mutate(
-    session = consecutive_id(month, day) # assign unique ids for sessions
-  ) |> 
-  ungroup() |> 
-  group_by(rat_ID, session) |> 
-  mutate(
-    trial = consecutive_id(time_in_level) # assign unique ids for trials
-  ) |> 
-  ungroup() |> 
-  mutate(
-    rat_ID = if_else(is.na(rat_ID), 'test', rat_ID), 
-    reward = if_else(str_detect(object_id, 'Diamond'), 'reward', 'punisher')
-  ) |> 
-  filter(rat_ID != 'test')
-
 # see how many rewards were realized
 hit_data_clean |> 
-  count(rat_ID, session, reward)
+  filter(!is.na(reward)) |> 
+  count(rat_ID, session, object_id)
 
 # visualize rolling distractor and reward hits for all rats
 
@@ -176,10 +186,11 @@ hit_data_clean |>
     y = 'Rolling count / min'
   ) +
   scale_color_manual(values = c('orange2', 'blue')) + 
-  facet_grid(rows = vars(rat_ID), cols = vars(session_labelled))
+  facet_grid(rows = vars(rat_ID), cols = vars(session_labelled)) + 
+  rft_theme()
 
 # save
-ggsave('fig_output/exploration/inhib_rolling_reward_distractor_hits.png', device = 'png', width = 6, height = 8, units = 'in')
+ggsave('fig_output/exploration/rl/rl_rolling_reward_distractor_hits.png', device = 'png', width = 8, height = 8, units = 'in')
 
 # rolling proportion of pokes that are successful hits of reward
 poke_data_roll <- poke_data_clean |> 
@@ -309,3 +320,74 @@ hit_dists |>
 
 ggsave('fig_output/exploration/inhib_distractor_hit_lines.png', device = 'png', width = 6, height = 8)
 
+# rl specific vis ---------------------------------------------------------
+
+# since this is trial based, makes more sense to track cumulative reward and 
+# punishers
+
+# assign ids to hits within sequences
+hit_seqs <- hit_data_clean |> 
+  group_by(rat_ID, session, trial) |>
+  mutate(
+    reward_hit = if_else(
+      hit == 'hit' & reward == 'rewarded', 
+      1, 
+      if_else(hit == 'hit' & reward == 'punished', -1, 0)
+    ),
+    reward_obj = if_else(reward_hit == 1, object_id, NA)
+  ) |> 
+  ungroup() |> 
+  group_by(rat_ID, session) |> 
+  mutate(
+    reward_id = cumsum(reward_hit)
+  ) |> 
+  ungroup() |> 
+  group_by(rat_ID, session, trial) |> 
+  fill(reward_obj, .direction = 'downup') |> 
+  mutate(
+    reward_id = max(reward_id, na.rm = T)
+  ) |> 
+  ungroup() |> 
+  group_by(rat_ID, session) |> 
+  fill(reward_obj, .direction = 'downup') |> 
+  mutate(
+    switch = if_else(
+      reward_obj != lag(reward_obj, default = '') & reward_id != lag(reward_id, default = 0) & trial > 1,
+      1, 
+      0
+    )
+  ) |> 
+  ungroup()
+
+# most rats take longer to reach the reward switch contingency, means that 
+# they should know which is the reward for a long time but still making mistakes, 
+# and the game strictly requires 6 consecutive reward trials to switch reward
+hit_seqs |> 
+  group_by(rat_ID, session) |> 
+  mutate(switch_no = cumsum(switch)) |> 
+  filter(switch == 1 & switch_no == 1) |> 
+  ggplot(aes(x = trial)) + 
+  geom_bar()
+
+hit_seqs |> 
+  ggplot(aes(x = trial, y = reward_id)) +
+  geom_line() + 
+  geom_hline(yintercept = 0, linetype = 3) +
+  labs(x = 'Trial', y = 'Cumulative Reward') +
+  rft_theme() +
+  facet_grid(rows = vars(rat_ID), cols = vars(session))
+
+hit_seqs |> 
+  group_by(rat_ID, session) |> 
+  mutate(
+    switch_num = cumsum(switch)
+  ) |> 
+  
+  
+
+# could also look at trial based reward hits starting when they find the correct 
+# reward, then track their distractor hits, aggregate across sessions and rats
+# to see if they are getting better at exploiting reward
+
+# perseverative errors, specifically, after switch of rule and finding new reward, 
+# do they return to the previous rewarded stimulus? 
